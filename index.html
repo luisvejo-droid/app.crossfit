@@ -103,6 +103,18 @@ button.last { border: 0; background: none; padding: 3px 0; font: 500 13px var(--
 .kgv.none { color: var(--muted); }
 .ends { display: flex; gap: 14px; align-items: flex-start; justify-content: flex-end; }
 .uv { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+#rows { position: relative; }
+.row { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.row input { -webkit-user-select: text; user-select: text; }
+.acts { display: flex; flex-direction: column; gap: 2px; }
+.acts .x { height: 31px; }
+.x.dup { color: var(--accent); }
+.ser { display: inline-block; margin-left: 4px; padding: 1px 7px; border-radius: 999px; background: var(--chip); color: var(--muted); font: 600 11px/1.5 var(--f-body); letter-spacing: .02em; vertical-align: 2px; }
+.row.drag { position: relative; z-index: 6; background: var(--surface); box-shadow: 0 10px 28px rgba(0,0,0,.28); border-radius: 14px; border-bottom-color: transparent; will-change: transform; }
+body.dragging { cursor: grabbing; }
+.row.fresh { animation: fresh .9s ease-out; }
+@keyframes fresh { from { background: color-mix(in srgb, var(--accent) 22%, var(--surface)); } to { background: transparent; } }
+@media (prefers-reduced-motion: reduce) { .row.fresh { animation: none; } }
 .row.multi { grid-template-columns: 48px minmax(0, 1fr) 36px; }
 .row.multi .kgs { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px 10px; }
 .kcell { flex: 1 1 130px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -257,9 +269,6 @@ button.last { border: 0; background: none; padding: 3px 0; font: 500 13px var(--
 <main class="gutter" id="view"></main>
 
 <div class="actions gutter" id="actions">
-  <button class="cam" id="camBtn" aria-label="Hacer foto de la pizarra">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2l1.4-2h6.2l1.4 2h2A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z"/><circle cx="12" cy="13" r="3.6"/></svg>
-  </button>
   <button class="fab" id="addBtn">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
     Ejercicio
@@ -596,6 +605,8 @@ const ICON = {
   check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
   x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
   back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>',
+  dup: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M5.5 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v.5"/></svg>',
+  gal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="M4 17l4.5-4.5 3.5 3.5 3-3 5 5"/></svg>',
   cam: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2l1.4-2h6.2l1.4 2h2A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z"/><circle cx="12" cy="13" r="3.6"/></svg>',
 };
 const UP = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1.5L11.5 10.5H.5z"/></svg>';
@@ -616,10 +627,12 @@ const unitOf = id => unitsOf(id)[0];
 const UNAME = {kg: "Kilos", reps: "Repeticiones", m: "Metros", s: "Segundos", cal: "Calorías"};
 const figOf = ex => ex.fig || ex.pat;
 const allEx = () => CATALOG.concat(S.custom);
+const uid = () => "e" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 (function migrate() {
   let ch = false;
   for (const k of Object.keys(S.units)) if (!Array.isArray(S.units[k])) { const u = S.units[k]; if (UNIT_LIST.includes(u)) S.units[k] = [u]; else delete S.units[k]; ch = true; }
   for (const day of Object.values(S.days)) for (const e of day.entries) {
+    if (!e.k) { e.k = uid(); ch = true; }
     if (!e.vals || typeof e.vals !== "object") { e.vals = {}; ch = true; }
     if ("kg" in e) { if (e.kg != null) e.vals[unitOf(e.ex)] = e.kg; delete e.kg; ch = true; }
   }
@@ -638,7 +651,11 @@ function index() {
     if (!idx.has(key)) idx.set(key, []);
     idx.get(key).push({date: d, kg: v});
   }
-  for (const r of idx.values()) r.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+  for (const [key, r] of [...idx]) {
+    r.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+    const out = []; for (const x of r) { const l = out[out.length - 1]; if (l && l.date === x.date) { if (x.kg > l.kg) l.kg = x.kg; } else out.push({date: x.date, kg: x.kg}); }
+    idx.set(key, out);
+  }
   return idx;
 }
 const recs = (id, u) => index().get(id + "|" + (u || unitOf(id))) || [];
@@ -663,13 +680,23 @@ function gc(d) { const x = S.days[d]; if (x && !x.entries.length && !x.photos.le
 function addEx(id) {
   const d = dayOf(cur, true);
   if (d.entries.some(e => e.ex === id)) return false;
-  d.entries.push({ex: id, vals: {}}); save(); idx = null; return true;
+  d.entries.push({k: uid(), ex: id, vals: {}}); save(); idx = null; return true;
 }
 function removeEx(id) {
   const d = dayOf(cur); if (!d) return;
-  const i = d.entries.findIndex(e => e.ex === id); if (i < 0) return;
+  d.entries = d.entries.filter(e => e.ex !== id); idx = null; gc(cur); save();
+}
+function removeKey(k) {
+  const d = dayOf(cur); if (!d) return;
+  const i = d.entries.findIndex(e => e.k === k); if (i < 0) return;
   const [gone] = d.entries.splice(i, 1); idx = null; gc(cur); save();
   return {gone, i};
+}
+function dupKey(k) {
+  const d = dayOf(cur); if (!d) return;
+  const i = d.entries.findIndex(e => e.k === k); if (i < 0) return;
+  const src = d.entries[i], copy = {k: uid(), ex: src.ex, vals: Object.assign({}, src.vals || {})};
+  d.entries.splice(i + 1, 0, copy); idx = null; save(); return copy.k;
 }
 
 /* ---------- Fotos (IndexedDB, con copia en memoria si no hay) ---------- */
@@ -750,13 +777,13 @@ function setChrome() {
   document.querySelectorAll(".tab").forEach(b => b.setAttribute("aria-current", String(b.dataset.tab === tab)));
 }
 function render() {
-  const ae = document.activeElement, isK = ae && ae.matches && ae.matches(".kg input"), fid = isK ? ae.closest(".row").dataset.ex : null, fu = isK ? ae.dataset.u : null;
+  const ae = document.activeElement, isK = ae && ae.matches && ae.matches(".kg input"), fid = isK ? ae.closest(".row").dataset.k : null, fu = isK ? ae.dataset.u : null;
   setChrome();
   const v = $("#view");
   if (tab === "hoy") renderHoy(v); else if (tab === "hist") renderHist(v); else if (tab === "setup") renderSetup(v); else renderEjs(v);
   freeze(v);
   hydratePhotos();
-  if (fid) { const f = v.querySelector(`.row[data-ex="${CSS.escape(fid)}"] input[data-u="${fu}"]`); if (f) f.focus(); }
+  if (fid) { const f = v.querySelector(`.row[data-k="${CSS.escape(fid)}"] input[data-u="${fu}"]`); if (f) f.focus(); }
 }
 
 /* Hoy */
@@ -769,17 +796,18 @@ function cellParts(e, ex, u) {
   };
 }
 function rowHtml(e) {
-  const ex = exById(e.ex), us = unitsOf(e.ex), x = `<button class="x" data-rm aria-label="Quitar ${esc(ex.name)}">${ICON.x}</button>`;
+  const ex = exById(e.ex), us = unitsOf(e.ex), x = `<div class="acts"><button class="x dup" data-dup aria-label="Copiar ${esc(ex.name)} para otra serie">${ICON.dup}</button><button class="x" data-rm aria-label="Quitar ${esc(ex.name)}">${ICON.x}</button></div>`,
+    sibs = (dayOf(cur) ? dayOf(cur).entries : []).filter(z => z.ex === e.ex), ser = sibs.length > 1 ? ` <span class="ser">Serie ${sibs.indexOf(e) + 1}</span>` : "";
   if (us.length === 1) {
     const c = cellParts(e, ex, us[0]);
-    return `<li class="row" data-ex="${esc(e.ex)}">
+    return `<li class="row" data-ex="${esc(e.ex)}" data-k="${esc(e.k)}">
   <div class="fig">${figure(figOf(ex))}</div>
-  <div class="nm"><b>${esc(ex.name)}</b><div class="sub">${c.hint}${c.tr}</div></div>
+  <div class="nm"><b>${esc(ex.name)}${ser}</b><div class="sub">${c.hint}${c.tr}</div></div>
   ${c.inp}${x}</li>`;
   }
-  return `<li class="row multi" data-ex="${esc(e.ex)}">
+  return `<li class="row multi" data-ex="${esc(e.ex)}" data-k="${esc(e.k)}">
   <div class="fig">${figure(figOf(ex))}</div>
-  <div class="nm"><b>${esc(ex.name)}</b></div>${x}
+  <div class="nm"><b>${esc(ex.name)}${ser}</b></div>${x}
   <div class="kgs">${us.map(u => { const c = cellParts(e, ex, u); return `<div class="kcell">${c.inp}<div class="sub">${c.hint}${c.tr}</div></div>`; }).join("")}</div></li>`;
 }
 function renderHoy(v) {
@@ -794,12 +822,11 @@ function renderHoy(v) {
 function renderPhotosBlock() {
   const el = $("#photosBlock"); if (!el) return;
   const d = dayOf(cur), ph = d ? d.photos : [];
-  el.innerHTML = `<div class="sect-h"><span>Fotos del día</span><span class="hbtns"><button id="pasteBtn">Pegar texto</button><button id="galBtn">Galería</button></span></div>
+  el.innerHTML = `<div class="sect-h"><span>Fotos del día</span></div>
   <div class="photos">${ph.map(p => `<div class="photo" data-pid="${p.id}"><img alt="Foto del registro" data-img="${p.id}"><button class="open" data-open="${p.id}" aria-label="Ver foto"></button>
     <button class="del" data-pdel="${p.id}" aria-label="Eliminar foto">${ICON.x}</button>
     ${busy.has(p.id) ? '<span class="st">Leyendo…</span>' : p.read ? `<span class="st">${p.n ? p.n + " ejercicios" : "Sin ejercicios"}</span>` : ""}</div>`).join("")}
-    <button class="addphoto" id="addPhoto">${ICON.cam}Foto</button></div>
-  <p class="note">Tras la foto, la app lee el texto y te propone los ejercicios. Si lo lee mal, puedes copiar el texto con el iPhone (mantén pulsado sobre él) y usar Pegar texto.</p>`;
+    <button class="addphoto" id="addPhoto">${ICON.cam}Foto</button><button class="addphoto" id="galBtn">${ICON.gal}Galería</button></div>`;
   hydratePhotos();
 }
 async function hydratePhotos() {
@@ -969,7 +996,7 @@ Si no se lee ningún ejercicio con carga, responde {"ejercicios":[]}.`;
     const d = dayOf(date, true); let n = 0;
     for (const it of items) {
       const id = it.id && allEx().some(e => e.id === it.id) ? it.id : (it.nombre ? customEx(String(it.nombre)) : null);
-      if (id && !d.entries.some(e => e.ex === id)) { d.entries.push({ex: id, vals: {}}); n++; }
+      if (id && !d.entries.some(e => e.ex === id)) { d.entries.push({k: uid(), ex: id, vals: {}}); n++; }
     }
     const meta = d.photos.find(p => p.id === pid); if (meta) { meta.read = true; meta.n = items.length; }
     idx = null; save();
@@ -993,6 +1020,54 @@ async function deletePhoto(pid) {
   d.photos = d.photos.filter(p => p.id !== pid); gc(cur); save(); await PH.del(pid); render();
 }
 
+/* ---------- Reordenar con pulsación larga ---------- */
+const DRAG = {st: null, t: null};
+document.addEventListener("touchmove", e => { if (DRAG.st && DRAG.st.on) e.preventDefault(); }, {passive: false});
+document.addEventListener("contextmenu", e => { if (DRAG.st && e.target.closest && e.target.closest("#rows")) e.preventDefault(); });
+function dragCancel() { clearTimeout(DRAG.t); DRAG.t = null; DRAG.st = null; }
+function dragStep() {
+  const st = DRAG.st; if (!st || !st.on) return;
+  const row = st.row, ul = row.parentElement, vh = innerHeight, topZ = 90, botZ = vh - 150;
+  if (st.y < topZ) scrollBy(0, -Math.ceil((topZ - st.y) / 5)); else if (st.y > botZ) scrollBy(0, Math.ceil((st.y - botZ) / 5));
+  const want = st.y - st.grab - ul.getBoundingClientRect().top, h = row.offsetHeight;
+  let prev = row.previousElementSibling, next = row.nextElementSibling;
+  while (prev && want + h / 2 < prev.offsetTop + prev.offsetHeight / 2) { ul.insertBefore(row, prev); prev = row.previousElementSibling; }
+  while (next && want + h / 2 > next.offsetTop + next.offsetHeight / 2) { ul.insertBefore(next, row); next = row.nextElementSibling; }
+  row.style.transform = `translateY(${want - row.offsetTop}px) scale(1.02)`;
+  st.raf = requestAnimationFrame(dragStep);
+}
+function dragStart() {
+  const st = DRAG.st; if (!st) return;
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  st.on = true; st.grab = st.y - st.row.getBoundingClientRect().top;
+  st.row.classList.add("drag"); document.body.classList.add("dragging");
+  try { st.row.setPointerCapture(st.id); } catch (e) {}
+  try { navigator.vibrate && navigator.vibrate(12); } catch (e) {}
+  dragStep();
+}
+function dragEnd() {
+  const st = DRAG.st; if (!st || !st.on) return dragCancel();
+  cancelAnimationFrame(st.raf);
+  const ul = st.row.parentElement, order = [...ul.children].map(li => li.dataset.k), d = dayOf(cur);
+  st.row.classList.remove("drag"); st.row.style.transform = ""; document.body.classList.remove("dragging");
+  DRAG.st = null;
+  if (d) { d.entries.sort((a, b) => order.indexOf(a.k) - order.indexOf(b.k)); save(); }
+  render();
+}
+document.addEventListener("pointerdown", e => {
+  if (tab !== "hoy" || (e.pointerType === "mouse" && e.button !== 0) || DRAG.st) return;
+  const row = e.target.closest && e.target.closest("#rows > .row"); if (!row || e.target.closest("input, button, label, a")) return;
+  DRAG.st = {row, id: e.pointerId, x0: e.clientX, y0: e.clientY, y: e.clientY, on: false};
+  DRAG.t = setTimeout(dragStart, 380);
+});
+document.addEventListener("pointermove", e => {
+  const st = DRAG.st; if (!st || e.pointerId !== st.id) return;
+  if (!st.on) { if (Math.hypot(e.clientX - st.x0, e.clientY - st.y0) > 9) dragCancel(); return; }
+  st.y = e.clientY;
+});
+document.addEventListener("pointerup", e => { const st = DRAG.st; if (st && e.pointerId === st.id) st.on ? dragEnd() : dragCancel(); });
+document.addEventListener("pointercancel", e => { const st = DRAG.st; if (st && e.pointerId === st.id) st.on ? dragEnd() : dragCancel(); });
+
 /* ---------- Eventos ---------- */
 $("#tabs").addEventListener("click", e => { const b = e.target.closest("[data-tab]"); if (!b) return; if (tab === b.dataset.tab && tab === "ejs") exDetail = null; tab = b.dataset.tab; scrollTo(0, 0); render(); });
 $("#dateInput").addEventListener("change", e => { if (e.target.value) { cur = e.target.value; render(); } });
@@ -1009,7 +1084,6 @@ $("#pickList").addEventListener("click", e => {
   else { const id = b.dataset.pick, d = dayOf(cur); if (d && d.entries.some(x => x.ex === id)) { removeEx(id); } else addEx(id); }
   renderSheet(); $("#pickList").scrollTop = top;
 });
-$("#camBtn").addEventListener("click", () => $("#camInput").click());
 $("#camInput").addEventListener("change", e => { const f = e.target.files[0]; e.target.value = ""; addPhoto(f); });
 $("#galInput").addEventListener("change", e => { const f = e.target.files[0]; e.target.value = ""; addPhoto(f); });
 $("#vClose").addEventListener("click", closeViewer);
@@ -1025,8 +1099,8 @@ const view = $("#view");
 view.addEventListener("input", e => {
   if (e.target.id === "setupQ") { setupQ = e.target.value; $("#setupList").innerHTML = setupRowsHtml(); return; }
   const inp = e.target.closest(".kg input"); if (!inp) return;
-  const row = inp.closest(".row"), id = row.dataset.ex, u = inp.dataset.u, d = dayOf(cur); if (!d) return;
-  const en = d.entries.find(x => x.ex === id); if (!en) return;
+  const row = inp.closest(".row"), k = row.dataset.k, u = inp.dataset.u, d = dayOf(cur); if (!d) return;
+  const en = d.entries.find(x => x.k === k); if (!en) return; const id = en.ex;
   if (!en.vals) en.vals = {};
   const val = parseKg(inp.value); if (val == null) delete en.vals[u]; else en.vals[u] = val;
   idx = null; save();
@@ -1042,14 +1116,18 @@ view.addEventListener("click", async e => {
   const t = e.target;
   let b;
   if ((b = t.closest("[data-fill]"))) { const row = b.closest(".row"), inp = row.querySelector(`input[data-u="${b.dataset.fu}"]`); inp.value = fmtKg(Number(b.dataset.fill)).replace(/\./g, ""); inp.dispatchEvent(new Event("input", {bubbles: true})); return; }
+  if ((b = t.closest("[data-dup]"))) {
+    const nk = dupKey(b.closest(".row").dataset.k); render();
+    const nr = nk && view.querySelector(`.row[data-k="${nk}"]`); if (nr) { nr.classList.add("fresh"); nr.addEventListener("animationend", () => nr.classList.remove("fresh"), {once: true}); nr.scrollIntoView({block: "nearest", behavior: "smooth"}); }
+    return;
+  }
   if ((b = t.closest("[data-rm]"))) {
-    const id = b.closest(".row").dataset.ex, r = removeEx(id); render();
-    if (r) toast(`Quitado ${exById(id).name}`, "Deshacer", () => { const d = dayOf(cur, true); d.entries.splice(r.i, 0, r.gone); idx = null; save(); render(); });
+    const r = removeKey(b.closest(".row").dataset.k); render();
+    if (r) toast(`Quitado ${exById(r.gone.ex).name}`, "Deshacer", () => { const d = dayOf(cur, true); d.entries.splice(r.i, 0, r.gone); idx = null; save(); render(); });
     return;
   }
   if (t.closest("#addPhoto")) return $("#camInput").click();
   if (t.closest("#galBtn")) return $("#galInput").click();
-  if (t.closest("#pasteBtn")) return openPaste();
   if ((b = t.closest("[data-open]"))) return openViewer(b.dataset.open);
   if ((b = t.closest("[data-pdel]"))) {
     if (b.classList.contains("arm")) return deletePhoto(b.dataset.pdel);
@@ -1088,7 +1166,7 @@ $("#restoreInput").addEventListener("change", async e => {
     const ids = new Set(S.custom.map(c => c.id));
     for (const c of j.custom || []) if (!ids.has(c.id)) S.custom.push(c);
     for (const [k, u] of Object.entries(j.units || {})) { const a = UNIT_LIST.filter(x => (Array.isArray(u) ? u : [u]).includes(x)); if (a.length) S.units[k] = a; }
-    for (const [k, d] of Object.entries(j.days)) { const cur2 = dayOf(k, true); for (const en of d.entries || []) { const vals = Object.assign({}, en.vals || {}); if (en.kg != null && !Object.keys(vals).length) vals[unitOf(en.ex)] = en.kg; const o = cur2.entries.find(x => x.ex === en.ex); if (o) o.vals = Object.assign(o.vals || {}, vals); else cur2.entries.push({ex: en.ex, vals}); } }
+    for (const [k, d] of Object.entries(j.days)) { const cur2 = dayOf(k, true); for (const en of d.entries || []) { const vals = Object.assign({}, en.vals || {}); if (en.kg != null && !Object.keys(vals).length) vals[unitOf(en.ex)] = en.kg; const o = en.k ? cur2.entries.find(x => x.k === en.k) : cur2.entries.find(x => x.ex === en.ex); if (o) o.vals = Object.assign(o.vals || {}, vals); else cur2.entries.push({k: en.k || uid(), ex: en.ex, vals}); } }
     idx = null; save(); render(); toast("Copia restaurada");
   } catch (err) { toast("Ese archivo no es una copia válida"); }
 });
@@ -1222,7 +1300,7 @@ function loadDemo() {
   const acc = Object.assign({}, base);
   for (let i = 0; i < 10; i++) {
     const k = addDays(today(), -(9 - i) * 4 - 1); if (S.days[k]) continue;
-    S.days[k] = {demo: true, photos: [], entries: plan[i % 3].map(id => { acc[id] += (id === "kb-swing" ? (i % 4 === 0 ? 4 : 0) : steps[(i + id.length) % steps.length]); return {ex: id, vals: {[unitOf(id)]: acc[id]}}; })};
+    S.days[k] = {demo: true, photos: [], entries: plan[i % 3].map(id => { acc[id] += (id === "kb-swing" ? (i % 4 === 0 ? 4 : 0) : steps[(i + id.length) % steps.length]); return {k: uid(), ex: id, vals: {[unitOf(id)]: acc[id]}}; })};
   }
   idx = null; save(); render();
 }
