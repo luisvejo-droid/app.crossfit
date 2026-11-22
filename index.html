@@ -104,6 +104,24 @@ button.last { border: 0; background: none; padding: 3px 0; font: 500 13px var(--
 .ends { display: flex; gap: 14px; align-items: flex-start; justify-content: flex-end; }
 .uv { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
 #rows { position: relative; }
+.row.press { transform: scale(1.015); background: var(--chip); transition: transform .12s; }
+.row.grp { box-shadow: inset 3px 0 0 var(--accent); }
+.row.sel { background: color-mix(in srgb, var(--accent) 14%, var(--surface)); box-shadow: inset 0 0 0 2px var(--accent); }
+.row.grp.sel { box-shadow: inset 0 0 0 2px var(--accent), inset 5px 0 0 var(--accent); }
+.row.drag.grp, .row.drag.sel { box-shadow: 0 10px 28px rgba(0,0,0,.28); }
+.selcancel { flex: none; padding: 0 20px; min-height: 56px; border: 0; border-radius: 16px; background: var(--ink); color: var(--bg); font: 600 16px var(--f-body); box-shadow: 0 6px 18px rgba(0,0,0,.18); }
+.figbtn { position: relative; border: 0; background: none; padding: 0; border-radius: 10px; color: inherit; }
+.figbtn .pen { position: absolute; right: -8px; bottom: -4px; width: 20px; height: 20px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; }
+.figbtn .pen svg { width: 11px; height: 11px; }
+.igrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 10px 0 14px; }
+.icell { border: 1.5px solid var(--line); border-radius: 14px; background: none; padding: 8px 4px 8px; display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--ink); font: 500 12px/1.2 var(--f-body); text-align: center; min-height: 104px; }
+.icell .fig { width: 48px; height: 56px; }
+.icell[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); font-weight: 600; }
+.stepper { display: flex; align-items: center; justify-content: center; gap: 22px; padding: 10px 0 4px; }
+.stepper .btn { width: 68px; min-height: 60px; font-size: 30px; }
+.rnum { text-align: center; min-width: 90px; }
+.rnum b { display: block; font: 700 56px/1 var(--f-display); }
+.rnum span { color: var(--muted); font-size: 13px; }
 .row { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 .row input { -webkit-user-select: text; user-select: text; }
 .acts { display: flex; flex-direction: column; gap: 2px; }
@@ -274,6 +292,10 @@ body.dragging { cursor: grabbing; }
     Ejercicio
   </button>
 </div>
+<div class="actions gutter" id="selBar" hidden>
+  <button class="selcancel" id="selCancel">Cancelar</button>
+  <button class="fab" id="selRound"><span id="selTxt">Hacer ronda</span></button>
+</div>
 
 <nav class="tabs" aria-label="Secciones"><div class="tabs-in" id="tabs">
   <button class="tab" data-tab="hoy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 9.5v5M5.5 7v10M18.5 7v10M21.5 9.5v5M5.5 12h13"/></svg>Hoy</button>
@@ -311,6 +333,27 @@ body.dragging { cursor: grabbing; }
     </div>
     <div class="sheet-list gutter" id="pasteRes"></div>
     <div class="pastebar gutter"><button class="btn pri" id="pasteAdd" disabled>Añadir</button></div>
+  </section>
+</div>
+
+<div class="back" id="iconBack" hidden>
+  <section class="sheet" role="dialog" aria-modal="true" aria-label="Elegir icono">
+    <div class="sheet-h gutter"><h2>Elegir icono</h2><button class="btn" id="iconClose">Cerrar</button></div>
+    <div class="gutter"><p class="note" id="iconSub"></p></div>
+    <div class="sheet-list gutter" id="iconGrid"></div>
+    <div class="pastebar gutter"><button class="btn" id="iconReset">Volver al icono original</button></div>
+  </section>
+</div>
+
+<div class="back" id="roundBack" hidden>
+  <section class="sheet" role="dialog" aria-modal="true" aria-label="Hacer ronda">
+    <div class="sheet-h gutter"><h2>Hacer ronda</h2><button class="btn" id="roundClose">Cerrar</button></div>
+    <div class="gutter">
+      <p class="note" id="roundList"></p>
+      <div class="stepper"><button class="btn" id="rMinus" aria-label="Menos rondas">−</button><div class="rnum"><b id="rNum">3</b><span>rondas</span></div><button class="btn" id="rPlus" aria-label="Más rondas">+</button></div>
+      <p class="note" id="roundSum" style="text-align:center"></p>
+    </div>
+    <div class="pastebar gutter"><button class="btn pri" id="roundGo">Crear ronda</button></div>
   </section>
 </div>
 
@@ -605,6 +648,7 @@ const ICON = {
   check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
   x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
   back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>',
+  pen: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l1-4L16.5 4.5a2 2 0 0 1 3 3L8 19z"/></svg>',
   dup: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M5.5 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v.5"/></svg>',
   gal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="M4 17l4.5-4.5 3.5 3.5 3-3 5 5"/></svg>',
   cam: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2l1.4-2h6.2l1.4 2h2A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z"/><circle cx="12" cy="13" r="3.6"/></svg>',
@@ -617,6 +661,7 @@ let S = { custom: [], days: {}, units: {} };
 let storageOk = true;
 try { const j = localStorage.getItem("cf.v1"); if (j) S = Object.assign(S, JSON.parse(j)); } catch (e) { storageOk = false; }
 if (!S.units || typeof S.units !== "object") S.units = {};
+if (!S.icons || typeof S.icons !== "object") S.icons = {};
 function save() { try { localStorage.setItem("cf.v1", JSON.stringify(S)); } catch (e) { storageOk = false; } }
 try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) {}
 
@@ -625,7 +670,7 @@ const UNIT_LIST = ["kg", "reps", "m", "s", "cal"];
 const unitsOf = id => { const a = S.units[id], arr = (Array.isArray(a) ? a : [a]).filter(u => UNIT_LIST.includes(u)); const base = arr.length ? arr : [exById(id).unit || "kg"]; return UNIT_LIST.filter(u => base.includes(u)); };
 const unitOf = id => unitsOf(id)[0];
 const UNAME = {kg: "Kilos", reps: "Repeticiones", m: "Metros", s: "Segundos", cal: "Calorías"};
-const figOf = ex => ex.fig || ex.pat;
+const figOf = ex => (S.icons[ex.id] && PATS[S.icons[ex.id]] ? S.icons[ex.id] : null) || ex.fig || ex.pat;
 const allEx = () => CATALOG.concat(S.custom);
 const uid = () => "e" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 (function migrate() {
@@ -765,7 +810,8 @@ function freeze(root) {
 }
 function setChrome() {
   const isHoy = tab === "hoy";
-  $("#actions").hidden = !isHoy;
+  if (!isHoy) SEL.clear();
+  updateSelBar();
   $("#dateBtn").hidden = !isHoy;
   $("#todayBtn").hidden = !(isHoy && cur !== today());
   const h = $("#title");
@@ -783,6 +829,7 @@ function render() {
   if (tab === "hoy") renderHoy(v); else if (tab === "hist") renderHist(v); else if (tab === "setup") renderSetup(v); else renderEjs(v);
   freeze(v);
   hydratePhotos();
+  updateSelBar();
   if (fid) { const f = v.querySelector(`.row[data-k="${CSS.escape(fid)}"] input[data-u="${fu}"]`); if (f) f.focus(); }
 }
 
@@ -797,21 +844,23 @@ function cellParts(e, ex, u) {
 }
 function rowHtml(e) {
   const ex = exById(e.ex), us = unitsOf(e.ex), x = `<div class="acts"><button class="x dup" data-dup aria-label="Copiar ${esc(ex.name)} para otra serie">${ICON.dup}</button><button class="x" data-rm aria-label="Quitar ${esc(ex.name)}">${ICON.x}</button></div>`,
-    sibs = (dayOf(cur) ? dayOf(cur).entries : []).filter(z => z.ex === e.ex), ser = sibs.length > 1 ? ` <span class="ser">Serie ${sibs.indexOf(e) + 1}</span>` : "";
+    sibs = (dayOf(cur) ? dayOf(cur).entries : []).filter(z => z.ex === e.ex && !z.g), cls = (SEL.has(e.k) ? " sel" : "") + (e.g ? " grp" : ""),
+    ser = e.g ? ` <span class="ser">Ronda ${e.r}/${e.n}</span>` : sibs.length > 1 ? ` <span class="ser">Serie ${sibs.indexOf(e) + 1}</span>` : "";
   if (us.length === 1) {
     const c = cellParts(e, ex, us[0]);
-    return `<li class="row" data-ex="${esc(e.ex)}" data-k="${esc(e.k)}">
+    return `<li class="row${cls}" data-ex="${esc(e.ex)}" data-k="${esc(e.k)}" aria-selected="${SEL.has(e.k)}">
   <div class="fig">${figure(figOf(ex))}</div>
   <div class="nm"><b>${esc(ex.name)}${ser}</b><div class="sub">${c.hint}${c.tr}</div></div>
   ${c.inp}${x}</li>`;
   }
-  return `<li class="row multi" data-ex="${esc(e.ex)}" data-k="${esc(e.k)}">
+  return `<li class="row multi${cls}" data-ex="${esc(e.ex)}" data-k="${esc(e.k)}" aria-selected="${SEL.has(e.k)}">
   <div class="fig">${figure(figOf(ex))}</div>
   <div class="nm"><b>${esc(ex.name)}${ser}</b></div>${x}
   <div class="kgs">${us.map(u => { const c = cellParts(e, ex, u); return `<div class="kcell">${c.inp}<div class="sub">${c.hint}${c.tr}</div></div>`; }).join("")}</div></li>`;
 }
 function renderHoy(v) {
   const d = dayOf(cur), list = d ? d.entries : [];
+  for (const k of [...SEL]) if (!list.some(e => e.k === k)) SEL.delete(k);
   const hasAny = Object.keys(S.days).length > 0;
   v.innerHTML = `${storageOk ? "" : '<div class="warn">Este navegador no deja guardar datos. Lo que apuntes se perderá al cerrar.</div>'}
   ${list.length ? `<div class="sect-h"><span>${list.length} ${list.length === 1 ? "ejercicio" : "ejercicios"}</span></div><div class="card"><ul class="rows" id="rows">${list.map(rowHtml).join("")}</ul></div>` :
@@ -874,7 +923,7 @@ function renderHist(v) {
 let setupQ = "", setupCat = "Todos";
 function setupRowHtml(e) {
   const us = unitsOf(e.id), n = nrecs(e.id), hid = UNIT_LIST.filter(x => !us.includes(x) && recs(e.id, x).length);
-  return `<div class="srow" data-sid="${esc(e.id)}"><div class="srow-h"><div class="fig">${figure(figOf(e), false)}</div><div class="nm"><b>${esc(e.name)}</b><span class="sub">${esc(e.cat)}</span></div><span class="sub">${n ? n + " reg." : ""}</span></div>
+  return `<div class="srow" data-sid="${esc(e.id)}"><div class="srow-h"><button class="fig figbtn" data-pick-icon="${esc(e.id)}" aria-label="Cambiar icono de ${esc(e.name)}">${figure(figOf(e), false)}<span class="pen">${ICON.pen}</span></button><div class="nm"><b>${esc(e.name)}</b><span class="sub">${esc(e.cat)}</span></div><span class="sub">${n ? n + " reg." : ""}</span></div>
     <div class="seg" role="group" aria-label="Unidades de ${esc(e.name)}">${UNIT_LIST.map(v => `<button data-tog="${v}" aria-pressed="${us.includes(v)}">${v}</button>`).join("")}</div>${hid.length ? `<p class="note hid">Datos en ${hid.join(", ")} (ocultos, no se borran)</p>` : ""}</div>`;
 }
 function setupRowsHtml() {
@@ -1020,11 +1069,81 @@ async function deletePhoto(pid) {
   d.photos = d.photos.filter(p => p.id !== pid); gc(cur); save(); await PH.del(pid); render();
 }
 
+/* ---------- Elegir icono ---------- */
+const PAT_NAMES = {squat: "Sentadilla trasera", fsquat: "Sentadilla frontal", ohs: "Sentadilla overhead", deadlift: "Peso muerto", press: "Press", thruster: "Thruster", clean: "Cargada", snatch: "Arranque", bench: "Press banca", row: "Remo con barra", pullup: "Dominada", lunge: "Zancada", swing: "Kettlebell swing", carry: "Acarreo", bridge: "Puente de glúteo", run: "Correr", rope: "Comba", du: "Comba doble", asq: "Sentadilla al aire", pistol: "Pistol", pushup: "Flexión", situp: "Abdominal", burpee: "Burpee", boxjump: "Salto al cajón", jump: "Salto", climb: "Trepa de cuerda", t2b: "Toes to bar", hspu: "Flexión en pino", hswalk: "Caminar en pino", handstand: "Pino", dip: "Fondos", ringrow: "Remo en anillas", rowerg: "Remo (máquina)", bike: "Bici", ski: "SkiErg", plank: "Plancha", lsit: "L-sit", hollow: "Hollow", vup: "V-up", deadhang: "Colgado", ghd: "GHD", mclimb: "Escalador", bear: "Oso", sled: "Trineo", yoke: "Yugo", slam: "Lanzamiento", wallwalk: "Wall walk", gm: "Good morning"};
+let iconFor = null;
+function openIcons(id) {
+  iconFor = id; const ex = exById(id);
+  $("#iconSub").textContent = `Para «${ex.name}». Toca el movimiento que quieras.`;
+  $("#iconReset").hidden = !S.icons[id];
+  const now = figOf(ex), keys = Object.keys(PATS).sort((a, b) => (PAT_NAMES[a] || a).localeCompare(PAT_NAMES[b] || b, "es"));
+  $("#iconGrid").innerHTML = `<div class="igrid">${keys.map(k => `<button class="icell" data-ic="${k}" aria-pressed="${now === k}"><div class="fig">${figure(k, true)}</div><span>${esc(PAT_NAMES[k] || k)}</span></button>`).join("")}</div>`;
+  freeze($("#iconGrid")); $("#iconBack").hidden = false; document.body.style.overflow = "hidden";
+}
+function closeIcons() { $("#iconBack").hidden = true; document.body.style.overflow = ""; iconFor = null; }
+function iconDone() {
+  const id = iconFor, row = id && document.querySelector(`.srow[data-sid="${CSS.escape(id)}"]`);
+  closeIcons(); save(); idx = null;
+  if (row) { const t = document.createElement("div"); t.innerHTML = setupRowHtml(exById(id)); row.replaceWith(t.firstElementChild); }
+}
+$("#iconClose").addEventListener("click", closeIcons);
+$("#iconBack").addEventListener("click", e => { if (e.target.id === "iconBack") closeIcons(); });
+$("#iconReset").addEventListener("click", () => { if (iconFor) delete S.icons[iconFor]; iconDone(); });
+$("#iconGrid").addEventListener("click", e => {
+  const b = e.target.closest("[data-ic]"); if (!b || !iconFor) return;
+  const ex = exById(iconFor); if (b.dataset.ic === ex.pat && !ex.fig) delete S.icons[iconFor]; else S.icons[iconFor] = b.dataset.ic;
+  iconDone();
+});
+
+/* ---------- Rondas ---------- */
+const SEL = new Set();
+let rounds = 3;
+function updateSelBar() {
+  const n = SEL.size, isHoy = tab === "hoy";
+  $("#actions").hidden = !isHoy || n > 0; $("#selBar").hidden = !(isHoy && n > 0);
+  $("#selTxt").textContent = n === 1 ? "Hacer ronda · 1 ejercicio" : `Hacer ronda · ${n} ejercicios`;
+}
+function toggleSel(row) {
+  const k = row.dataset.k; if (SEL.has(k)) SEL.delete(k); else SEL.add(k);
+  row.classList.toggle("sel", SEL.has(k)); row.setAttribute("aria-selected", String(SEL.has(k))); updateSelBar();
+}
+function clearSel() { SEL.clear(); document.querySelectorAll("#rows .row.sel").forEach(r => r.classList.remove("sel")); updateSelBar(); }
+function selEntries() { const d = dayOf(cur); return d ? d.entries.filter(e => SEL.has(e.k)) : []; }
+function renderRoundSheet() {
+  const sel = selEntries();
+  $("#roundList").textContent = sel.map(e => exById(e.ex).name).join(" → ");
+  $("#rNum").textContent = rounds; $("#rMinus").disabled = rounds <= 2; $("#rPlus").disabled = rounds >= 30;
+  $("#roundSum").textContent = `${rounds} rondas × ${sel.length} ${sel.length === 1 ? "ejercicio" : "ejercicios"} = ${rounds * sel.length} filas`;
+}
+function openRound() { if (!SEL.size) return; $("#roundBack").hidden = false; document.body.style.overflow = "hidden"; renderRoundSheet(); }
+function closeRound() { $("#roundBack").hidden = true; document.body.style.overflow = ""; }
+function makeRounds(R) {
+  const d = dayOf(cur), sel = selEntries(); if (!d || !sel.length) return null;
+  const before = JSON.parse(JSON.stringify(d.entries)), first = d.entries.findIndex(e => SEL.has(e.k));
+  const rest = d.entries.filter(e => !SEL.has(e.k)), g = "g" + uid(), block = [];
+  for (let r = 1; r <= R; r++) for (const e of sel) {
+    if (r === 1) { e.g = g; e.r = 1; e.n = R; block.push(e); }
+    else block.push({k: uid(), ex: e.ex, vals: Object.assign({}, e.vals || {}), g, r, n: R});
+  }
+  rest.splice(first, 0, ...block); d.entries = rest; idx = null; save();
+  return before;
+}
+$("#roundClose").addEventListener("click", closeRound);
+$("#roundBack").addEventListener("click", e => { if (e.target.id === "roundBack") closeRound(); });
+$("#rMinus").addEventListener("click", () => { rounds = Math.max(2, rounds - 1); renderRoundSheet(); });
+$("#rPlus").addEventListener("click", () => { rounds = Math.min(30, rounds + 1); renderRoundSheet(); });
+$("#roundGo").addEventListener("click", () => {
+  const n = SEL.size, before = makeRounds(rounds); closeRound(); clearSel(); render();
+  if (before) toast(`Ronda de ${rounds} creada`, "Deshacer", () => { const d = dayOf(cur, true); d.entries = before; idx = null; save(); render(); });
+});
+$("#selCancel").addEventListener("click", clearSel);
+$("#selRound").addEventListener("click", openRound);
+
 /* ---------- Reordenar con pulsación larga ---------- */
 const DRAG = {st: null, t: null};
-document.addEventListener("touchmove", e => { if (DRAG.st && DRAG.st.on) e.preventDefault(); }, {passive: false});
+document.addEventListener("touchmove", e => { if (DRAG.st && (DRAG.st.armed || DRAG.st.on)) e.preventDefault(); }, {passive: false});
 document.addEventListener("contextmenu", e => { if (DRAG.st && e.target.closest && e.target.closest("#rows")) e.preventDefault(); });
-function dragCancel() { clearTimeout(DRAG.t); DRAG.t = null; DRAG.st = null; }
+function dragCancel() { const st = DRAG.st; if (st && st.row) st.row.classList.remove("press"); clearTimeout(DRAG.t); DRAG.t = null; DRAG.st = null; }
 function dragStep() {
   const st = DRAG.st; if (!st || !st.on) return;
   const row = st.row, ul = row.parentElement, vh = innerHeight, topZ = 90, botZ = vh - 150;
@@ -1036,13 +1155,17 @@ function dragStep() {
   row.style.transform = `translateY(${want - row.offsetTop}px) scale(1.02)`;
   st.raf = requestAnimationFrame(dragStep);
 }
-function dragStart() {
+function dragArm() {
   const st = DRAG.st; if (!st) return;
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
-  st.on = true; st.grab = st.y - st.row.getBoundingClientRect().top;
-  st.row.classList.add("drag"); document.body.classList.add("dragging");
+  st.armed = true; st.row.classList.add("press");
   try { st.row.setPointerCapture(st.id); } catch (e) {}
   try { navigator.vibrate && navigator.vibrate(12); } catch (e) {}
+}
+function dragStart() {
+  const st = DRAG.st; if (!st) return;
+  st.on = true; st.grab = st.y - st.row.getBoundingClientRect().top;
+  st.row.classList.remove("press"); st.row.classList.add("drag"); document.body.classList.add("dragging");
   dragStep();
 }
 function dragEnd() {
@@ -1057,15 +1180,22 @@ function dragEnd() {
 document.addEventListener("pointerdown", e => {
   if (tab !== "hoy" || (e.pointerType === "mouse" && e.button !== 0) || DRAG.st) return;
   const row = e.target.closest && e.target.closest("#rows > .row"); if (!row || e.target.closest("input, button, label, a")) return;
-  DRAG.st = {row, id: e.pointerId, x0: e.clientX, y0: e.clientY, y: e.clientY, on: false};
-  DRAG.t = setTimeout(dragStart, 380);
+  DRAG.st = {row, id: e.pointerId, x0: e.clientX, y0: e.clientY, y: e.clientY, armed: false, on: false, selMode: SEL.size > 0};
+  DRAG.t = setTimeout(dragArm, 380);
 });
 document.addEventListener("pointermove", e => {
   const st = DRAG.st; if (!st || e.pointerId !== st.id) return;
-  if (!st.on) { if (Math.hypot(e.clientX - st.x0, e.clientY - st.y0) > 9) dragCancel(); return; }
+  const dist = Math.hypot(e.clientX - st.x0, e.clientY - st.y0);
+  if (!st.armed) { if (dist > 9) dragCancel(); return; }
   st.y = e.clientY;
+  if (!st.on && dist > 8) dragStart();
 });
-document.addEventListener("pointerup", e => { const st = DRAG.st; if (st && e.pointerId === st.id) st.on ? dragEnd() : dragCancel(); });
+document.addEventListener("pointerup", e => {
+  const st = DRAG.st; if (!st || e.pointerId !== st.id) return;
+  if (st.on) return dragEnd();
+  const row = st.row, wasArmed = st.armed, selMode = st.selMode; dragCancel();
+  if (wasArmed || selMode) toggleSel(row);
+});
 document.addEventListener("pointercancel", e => { const st = DRAG.st; if (st && e.pointerId === st.id) st.on ? dragEnd() : dragCancel(); });
 
 /* ---------- Eventos ---------- */
@@ -1116,6 +1246,7 @@ view.addEventListener("click", async e => {
   const t = e.target;
   let b;
   if ((b = t.closest("[data-fill]"))) { const row = b.closest(".row"), inp = row.querySelector(`input[data-u="${b.dataset.fu}"]`); inp.value = fmtKg(Number(b.dataset.fill)).replace(/\./g, ""); inp.dispatchEvent(new Event("input", {bubbles: true})); return; }
+  if ((b = t.closest("[data-pick-icon]"))) return openIcons(b.dataset.pickIcon);
   if ((b = t.closest("[data-dup]"))) {
     const nk = dupKey(b.closest(".row").dataset.k); render();
     const nr = nk && view.querySelector(`.row[data-k="${nk}"]`); if (nr) { nr.classList.add("fresh"); nr.addEventListener("animationend", () => nr.classList.remove("fresh"), {once: true}); nr.scrollIntoView({block: "nearest", behavior: "smooth"}); }
@@ -1153,7 +1284,7 @@ view.addEventListener("click", async e => {
   if (t.closest("#rmDemo")) { for (const k of Object.keys(S.days)) if (S.days[k].demo) delete S.days[k]; idx = null; save(); return render(); }
   if (t.closest("#bkSave")) {
     const dl = await cap("downloads"); if (!dl) return;
-    try { await dl.save({filename: `pesos-crossfit-${today()}.json`, data: JSON.stringify({v: 2, custom: S.custom, units: S.units, days: Object.fromEntries(Object.entries(S.days).map(([k, d]) => [k, {...d, photos: []}]))})}); toast("Copia guardada"); } catch (err) { if (!err || err.code !== "declined") toast("No se pudo guardar la copia"); }
+    try { await dl.save({filename: `pesos-crossfit-${today()}.json`, data: JSON.stringify({v: 2, custom: S.custom, units: S.units, icons: S.icons, days: Object.fromEntries(Object.entries(S.days).map(([k, d]) => [k, {...d, photos: []}]))})}); toast("Copia guardada"); } catch (err) { if (!err || err.code !== "declined") toast("No se pudo guardar la copia"); }
     return;
   }
   if (t.closest("#bkLoad")) return $("#restoreInput").click();
@@ -1165,6 +1296,7 @@ $("#restoreInput").addEventListener("change", async e => {
     if (!j || typeof j.days !== "object") throw 0;
     const ids = new Set(S.custom.map(c => c.id));
     for (const c of j.custom || []) if (!ids.has(c.id)) S.custom.push(c);
+    for (const [k, v] of Object.entries(j.icons || {})) if (PATS[v]) S.icons[k] = v;
     for (const [k, u] of Object.entries(j.units || {})) { const a = UNIT_LIST.filter(x => (Array.isArray(u) ? u : [u]).includes(x)); if (a.length) S.units[k] = a; }
     for (const [k, d] of Object.entries(j.days)) { const cur2 = dayOf(k, true); for (const en of d.entries || []) { const vals = Object.assign({}, en.vals || {}); if (en.kg != null && !Object.keys(vals).length) vals[unitOf(en.ex)] = en.kg; const o = en.k ? cur2.entries.find(x => x.k === en.k) : cur2.entries.find(x => x.ex === en.ex); if (o) o.vals = Object.assign(o.vals || {}, vals); else cur2.entries.push({k: en.k || uid(), ex: en.ex, vals}); } }
     idx = null; save(); render(); toast("Copia restaurada");
