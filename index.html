@@ -104,6 +104,17 @@ button.last { border: 0; background: none; padding: 3px 0; font: 500 13px var(--
 .ends { display: flex; gap: 14px; align-items: flex-start; justify-content: flex-end; }
 .uv { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
 #rows { position: relative; }
+.calnav { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 0 8px; }
+.calnav b { font: 700 24px var(--f-display); }
+.calnav .btn { width: 52px; padding: 0; font-size: 26px; }
+.calhead, .calgrid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; }
+.calhead span { font: 600 12px var(--f-body); color: var(--muted); padding: 6px 0; }
+.cald { position: relative; height: 46px; border: 0; border-radius: 12px; background: none; font: 500 18px var(--f-body); color: var(--ink); }
+.cald.tr { color: var(--accent); font-weight: 700; }
+.cald.td::after { content: ""; position: absolute; left: 50%; bottom: 5px; width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%; background: currentColor; }
+.cald.sel { background: var(--chip); box-shadow: inset 0 0 0 2px var(--ink); }
+.callegend { margin: 10px 0 12px; }
+.callegend b { color: var(--accent); font-weight: 700; margin-right: 4px; }
 .row.press { transform: scale(1.015); background: var(--chip); transition: transform .12s; }
 .row.grp { box-shadow: inset 3px 0 0 var(--accent); }
 .row.sel { background: color-mix(in srgb, var(--accent) 14%, var(--surface)); box-shadow: inset 0 0 0 2px var(--accent); }
@@ -277,10 +288,9 @@ body.dragging { cursor: grabbing; }
   <div class="top-in gutter">
     <h1 id="title"></h1>
     <button class="todaybtn" id="todayBtn" hidden>Hoy</button>
-    <label class="ib" id="dateBtn" aria-label="Cambiar la fecha del registro">
+    <button class="ib" id="dateBtn" aria-label="Cambiar la fecha del registro">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
-      <input type="date" id="dateInput" aria-label="Fecha">
-    </label>
+    </button>
   </div>
 </header>
 
@@ -333,6 +343,19 @@ body.dragging { cursor: grabbing; }
     </div>
     <div class="sheet-list gutter" id="pasteRes"></div>
     <div class="pastebar gutter"><button class="btn pri" id="pasteAdd" disabled>Añadir</button></div>
+  </section>
+</div>
+
+<div class="back" id="calBack" hidden>
+  <section class="sheet" role="dialog" aria-modal="true" aria-label="Elegir fecha">
+    <div class="sheet-h gutter"><h2>Elegir fecha</h2><button class="btn" id="calClose">Cerrar</button></div>
+    <div class="gutter">
+      <div class="calnav"><button class="btn" id="calPrev" aria-label="Mes anterior">‹</button><b id="calTitle"></b><button class="btn" id="calNext" aria-label="Mes siguiente">›</button></div>
+      <div class="calhead" aria-hidden="true"><span>L</span><span>M</span><span>X</span><span>J</span><span>V</span><span>S</span><span>D</span></div>
+      <div class="calgrid" id="calGrid"></div>
+      <p class="note callegend"><b>12</b> Días con entrenamiento</p>
+    </div>
+    <div class="pastebar gutter"><button class="btn" id="calToday">Ir a hoy</button></div>
   </section>
 </div>
 
@@ -669,6 +692,7 @@ const exById = id => CAT.get(id) || S.custom.find(c => c.id === id) || {id, name
 const UNIT_LIST = ["kg", "reps", "m", "s", "cal"];
 const unitsOf = id => { const a = S.units[id], arr = (Array.isArray(a) ? a : [a]).filter(u => UNIT_LIST.includes(u)); const base = arr.length ? arr : [exById(id).unit || "kg"]; return UNIT_LIST.filter(u => base.includes(u)); };
 const unitOf = id => unitsOf(id)[0];
+const UL = u => ({m: "mts", s: "seg"})[u] || u;
 const UNAME = {kg: "Kilos", reps: "Repeticiones", m: "Metros", s: "Segundos", cal: "Calorías"};
 const figOf = ex => (S.icons[ex.id] && PATS[S.icons[ex.id]] ? S.icons[ex.id] : null) || ex.fig || ex.pat;
 const allEx = () => CATALOG.concat(S.custom);
@@ -819,7 +843,6 @@ function setChrome() {
   else if (tab === "hist") h.innerHTML = "<small>Histórico</small>Entrenamientos";
   else if (tab === "setup") h.innerHTML = "<small>Biblioteca</small>Setup";
   else h.innerHTML = `<small>Histórico</small>${exDetail ? esc(exById(exDetail).name) : "Ejercicios"}`;
-  $("#dateInput").value = cur;
   document.querySelectorAll(".tab").forEach(b => b.setAttribute("aria-current", String(b.dataset.tab === tab)));
 }
 function render() {
@@ -837,8 +860,8 @@ function render() {
 function cellParts(e, ex, u) {
   const p = prevOf(e.ex, cur, u), v = e.vals && e.vals[u];
   return {
-    hint: p ? `<button class="last" data-fill="${p.kg}" data-fu="${u}" aria-label="Repetir ${fmtKg(p.kg)} ${u}">Última ${fmtKg(p.kg)} ${u} · ${esc(fmtShort(p.date))}</button>` : '<span>Sin registros antes</span>',
-    inp: `<label class="kg${u.length > 2 ? " wide" : ""}"><input data-u="${u}" inputmode="decimal" enterkeyhint="next" autocomplete="off" pattern="[0-9]*[.,]?[0-9]*" aria-label="${UNAME[u]} de ${esc(ex.name)}" placeholder="${p ? fmtKg(p.kg) : "—"}" value="${v == null ? "" : fmtKg(v).replace(/\./g, "")}"><span>${u}</span></label>`,
+    hint: p ? `<button class="last" data-fill="${p.kg}" data-fu="${u}" aria-label="Repetir ${fmtKg(p.kg)} ${UL(u)}">Última ${fmtKg(p.kg)} ${UL(u)} · ${esc(fmtShort(p.date))}</button>` : '<span>Sin registros antes</span>',
+    inp: `<label class="kg${UL(u).length > 2 ? " wide" : ""}"><input data-u="${u}" inputmode="decimal" enterkeyhint="next" autocomplete="off" pattern="[0-9]*[.,]?[0-9]*" aria-label="${UNAME[u]} de ${esc(ex.name)}" placeholder="${p ? fmtKg(p.kg) : "—"}" value="${v == null ? "" : fmtKg(v).replace(/\./g, "")}"><span>${UL(u)}</span></label>`,
     tr: `<span class="tslot" data-u="${u}">${trendHtml(trendOf(e.ex, cur, v, u))}</span>`
   };
 }
@@ -909,7 +932,7 @@ function renderHist(v) {
       <ul class="rows">${d.entries.map(e => {
         const ex = exById(e.ex);
         const eu = UNIT_LIST.filter(x => e.vals && e.vals[x] != null);
-        return `<li class="row ro"><div class="fig">${figure(figOf(ex), false)}</div><div class="nm"><b>${esc(ex.name)}</b></div><div class="ends">${eu.length ? eu.map(x => `<div class="uv"><div class="kgv">${fmtKg(e.vals[x])}<small>${x}</small></div>${trendHtml(trendOf(e.ex, k, e.vals[x], x))}</div>`).join("") : '<div class="kgv none">—</div>'}</div></li>`;
+        return `<li class="row ro"><div class="fig">${figure(figOf(ex), false)}</div><div class="nm"><b>${esc(ex.name)}</b></div><div class="ends">${eu.length ? eu.map(x => `<div class="uv"><div class="kgv">${fmtKg(e.vals[x])}<small>${UL(x)}</small></div>${trendHtml(trendOf(e.ex, k, e.vals[x], x))}</div>`).join("") : '<div class="kgv none">—</div>'}</div></li>`;
       }).join("")}</ul></article>`;
     }
   }
@@ -924,7 +947,7 @@ let setupQ = "", setupCat = "Todos";
 function setupRowHtml(e) {
   const us = unitsOf(e.id), n = nrecs(e.id), hid = UNIT_LIST.filter(x => !us.includes(x) && recs(e.id, x).length);
   return `<div class="srow" data-sid="${esc(e.id)}"><div class="srow-h"><button class="fig figbtn" data-pick-icon="${esc(e.id)}" aria-label="Cambiar icono de ${esc(e.name)}">${figure(figOf(e), false)}<span class="pen">${ICON.pen}</span></button><div class="nm"><b>${esc(e.name)}</b><span class="sub">${esc(e.cat)}</span></div><span class="sub">${n ? n + " reg." : ""}</span></div>
-    <div class="seg" role="group" aria-label="Unidades de ${esc(e.name)}">${UNIT_LIST.map(v => `<button data-tog="${v}" aria-pressed="${us.includes(v)}">${v}</button>`).join("")}</div>${hid.length ? `<p class="note hid">Datos en ${hid.join(", ")} (ocultos, no se borran)</p>` : ""}</div>`;
+    <div class="seg" role="group" aria-label="Unidades de ${esc(e.name)}">${UNIT_LIST.map(v => `<button data-tog="${v}" aria-pressed="${us.includes(v)}">${UL(v)}</button>`).join("")}</div>${hid.length ? `<p class="note hid">Datos en ${hid.map(UL).join(", ")} (ocultos, no se borran)</p>` : ""}</div>`;
 }
 function setupRowsHtml() {
   const q = norm(setupQ);
@@ -970,13 +993,13 @@ function renderEjs(v) {
     v.innerHTML = `<button class="back-btn" id="exBack">${ICON.back}Ejercicios</button>
     <div class="card"><div class="hero"><div class="fig">${figure(figOf(ex))}</div><div><h2>${esc(ex.name)}</h2><div class="sub">${esc(ex.cat)}</div></div></div>
     ${isCustom && canAsk ? `<div class="redraw"><button class="btn" id="redraw"${designing.has(exDetail) || !canAsk ? " disabled" : ""}>${designing.has(exDetail) ? "Dibujando…" : ex.fig ? "Volver a dibujar el movimiento" : "Dibujar el movimiento con Claude"}</button>${canAsk ? "" : '<p class="note">Solo disponible dentro de Claude.</p>'}</div>` : ""}
-    ${rs.length ? `<div class="stats"><div class="stat"><small>Último</small><b>${fmtKg(last.kg)}<i>${u}</i></b></div><div class="stat"><small>Mejor</small><b>${fmtKg(best)}<i>${u}</i></b></div><div class="stat"><small>Sesiones</small><b>${rs.length}</b></div></div>${spark(rs)}` : ""}</div>
-    ${us.length > 1 ? `<div class="ranges" role="group" aria-label="Unidad">${us.map(x => `<button class="chip" data-dunit="${x}" aria-pressed="${x === u}">${x}</button>`).join("")}</div>` : ""}
-    <div class="sect-h"><span>Historial${us.length > 1 ? " en " + u : ""}</span></div>
+    ${rs.length ? `<div class="stats"><div class="stat"><small>Último</small><b>${fmtKg(last.kg)}<i>${UL(u)}</i></b></div><div class="stat"><small>Mejor</small><b>${fmtKg(best)}<i>${UL(u)}</i></b></div><div class="stat"><small>Sesiones</small><b>${rs.length}</b></div></div>${spark(rs)}` : ""}</div>
+    ${us.length > 1 ? `<div class="ranges" role="group" aria-label="Unidad">${us.map(x => `<button class="chip" data-dunit="${x}" aria-pressed="${x === u}">${UL(x)}</button>`).join("")}</div>` : ""}
+    <div class="sect-h"><span>Historial${us.length > 1 ? " en " + UL(u) : ""}</span></div>
     ${rs.length ? `<div class="card">${desc.map((r, i) => {
       const t = trendOf(exDetail, r.date, r.kg, u), isPr = r.kg === best && !prSeen && (prSeen = true);
-      return `<div class="hist-row"><span class="d">${esc(fmtDay(r.date))}${isPr ? '<span class="pr">MEJOR</span>' : ""}</span><span class="kgv">${fmtKg(r.kg)}<small>${u}</small></span>${trendHtml(t) || "<span></span>"}</div>`;
-    }).join("")}</div>` : `<div class="card empty"><p>Todavía no has apuntado ${esc(u)} de este ejercicio.</p></div>`}`;
+      return `<div class="hist-row"><span class="d">${esc(fmtDay(r.date))}${isPr ? '<span class="pr">MEJOR</span>' : ""}</span><span class="kgv">${fmtKg(r.kg)}<small>${UL(u)}</small></span>${trendHtml(t) || "<span></span>"}</div>`;
+    }).join("")}</div>` : `<div class="card empty"><p>Todavía no has apuntado ${esc(UL(u))} de este ejercicio.</p></div>`}`;
     return;
   }
   const withData = allEx().filter(e => nrecs(e.id));
@@ -984,8 +1007,8 @@ function renderEjs(v) {
   v.innerHTML = `<div class="ranges"><button class="chip" data-showall="0" aria-pressed="${!showAllEx}">Con registros</button><button class="chip" data-showall="1" aria-pressed="${showAllEx}">Todos</button></div>
   ${list.length ? `<div class="card">${list.map(e => {
     const dus = UNIT_LIST.filter(x => recs(e.id, x).length), n = nrecs(e.id), pu = dus[0], rs = pu ? recs(e.id, pu) : [];
-    return `<button class="exrow" data-ex-open="${esc(e.id)}"><div class="fig">${figure(figOf(e), false)}</div><div class="nm"><b>${esc(e.name)}</b><span class="sub">${n ? n + (n === 1 ? " sesión" : " sesiones") + " · mejor " + fmtKg(Math.max(...rs.map(r => r.kg))) + " " + pu + (dus.length > 1 ? " · " + dus.join(" + ") : "") : esc(e.cat)}</span></div>
-    <div class="ends">${dus.map(x => { const r = recs(e.id, x), l = r[r.length - 1]; return `<div class="uv"><div class="kgv">${fmtKg(l.kg)}<small>${x}</small></div>${trendHtml(trendOf(e.id, l.date, l.kg, x))}</div>`; }).join("")}</div></button>`;
+    return `<button class="exrow" data-ex-open="${esc(e.id)}"><div class="fig">${figure(figOf(e), false)}</div><div class="nm"><b>${esc(e.name)}</b><span class="sub">${n ? n + (n === 1 ? " sesión" : " sesiones") + " · mejor " + fmtKg(Math.max(...rs.map(r => r.kg))) + " " + UL(pu) + (dus.length > 1 ? " · " + dus.map(UL).join(" + ") : "") : esc(e.cat)}</span></div>
+    <div class="ends">${dus.map(x => { const r = recs(e.id, x), l = r[r.length - 1]; return `<div class="uv"><div class="kgv">${fmtKg(l.kg)}<small>${UL(x)}</small></div>${trendHtml(trendOf(e.id, l.date, l.kg, x))}</div>`; }).join("")}</div></button>`;
   }).join("")}</div>` : `<div class="card empty"><div class="fig">${figure("squat")}</div><h2>Sin ejercicios todavía</h2><p>Apunta kilos en la pestaña Hoy y aquí tendrás el histórico de cada ejercicio.</p></div>`}`;
 }
 
@@ -1200,7 +1223,27 @@ document.addEventListener("pointercancel", e => { const st = DRAG.st; if (st && 
 
 /* ---------- Eventos ---------- */
 $("#tabs").addEventListener("click", e => { const b = e.target.closest("[data-tab]"); if (!b) return; if (tab === b.dataset.tab && tab === "ejs") exDetail = null; tab = b.dataset.tab; scrollTo(0, 0); render(); });
-$("#dateInput").addEventListener("change", e => { if (e.target.value) { cur = e.target.value; render(); } });
+/* ---------- Calendario ---------- */
+let calM = null;
+function renderCal() {
+  const y = calM.getFullYear(), m = calM.getMonth(), first = (new Date(y, m, 1).getDay() + 6) % 7, n = new Date(y, m + 1, 0).getDate();
+  $("#calTitle").textContent = cap1(calM.toLocaleDateString("es-ES", {month: "long", year: "numeric"})).replace(" de ", " ");
+  let h = ""; for (let i = 0; i < first; i++) h += "<span></span>";
+  for (let d = 1; d <= n; d++) {
+    const key = ymd(new Date(y, m, d)), dd = S.days[key], tr = !!(dd && dd.entries.length);
+    h += `<button class="cald${tr ? " tr" : ""}${key === today() ? " td" : ""}${key === cur ? " sel" : ""}" data-day="${key}" aria-label="${esc(fmtLong(key))}${tr ? ", con entrenamiento" : ""}"${key === cur ? ' aria-current="date"' : ""}>${d}</button>`;
+  }
+  $("#calGrid").innerHTML = h;
+}
+function openCal() { const c = parseYmd(cur); calM = new Date(c.getFullYear(), c.getMonth(), 1); renderCal(); $("#calBack").hidden = false; document.body.style.overflow = "hidden"; }
+function closeCal() { $("#calBack").hidden = true; document.body.style.overflow = ""; }
+$("#dateBtn").addEventListener("click", openCal);
+$("#calClose").addEventListener("click", closeCal);
+$("#calBack").addEventListener("click", e => { if (e.target.id === "calBack") closeCal(); });
+$("#calPrev").addEventListener("click", () => { calM = new Date(calM.getFullYear(), calM.getMonth() - 1, 1); renderCal(); });
+$("#calNext").addEventListener("click", () => { calM = new Date(calM.getFullYear(), calM.getMonth() + 1, 1); renderCal(); });
+$("#calToday").addEventListener("click", () => { cur = today(); closeCal(); render(); });
+$("#calGrid").addEventListener("click", e => { const b = e.target.closest("[data-day]"); if (!b) return; cur = b.dataset.day; closeCal(); render(); });
 $("#todayBtn").addEventListener("click", () => { cur = today(); render(); });
 $("#addBtn").addEventListener("click", openSheet);
 $("#sheetDone").addEventListener("click", closeSheet);
