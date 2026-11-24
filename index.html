@@ -148,6 +148,11 @@ body.dragging { cursor: grabbing; }
 .row.multi .kgs { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px 10px; }
 .kcell { flex: 1 1 130px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .row.multi .kg, .row.multi .kg.wide { width: 100%; }
+.rmline { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font: 500 14px var(--f-body); color: var(--muted); }
+.rmline:empty { display: none; }
+.rmline b { color: var(--ink); font-weight: 700; }
+.weak { font-size: 12px; color: var(--muted); font-weight: 500; }
+.rmsub { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; }
 .srow .hid { margin: 6px 0 0; }
 .end { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
 
@@ -692,7 +697,9 @@ const exById = id => CAT.get(id) || S.custom.find(c => c.id === id) || {id, name
 const UNIT_LIST = ["kg", "reps", "m", "s", "cal"];
 const unitsOf = id => { const a = S.units[id], arr = (Array.isArray(a) ? a : [a]).filter(u => UNIT_LIST.includes(u)); const base = arr.length ? arr : [exById(id).unit || "kg"]; return UNIT_LIST.filter(u => base.includes(u)); };
 const unitOf = id => unitsOf(id)[0];
-const UL = u => ({m: "mts", s: "seg"})[u] || u;
+const UL = u => ({m: "mts", s: "seg", rm: "1RM"})[u] || u;
+const USUF = u => u === "rm" ? "kg" : UL(u);
+const e1rm = (kg, reps) => kg > 0 && reps >= 1 ? Math.round((reps === 1 ? kg : kg * (1 + reps / 30)) * 10) / 10 : null;
 const UNAME = {kg: "Kilos", reps: "Repeticiones", m: "Metros", s: "Segundos", cal: "Calorías"};
 const figOf = ex => (S.icons[ex.id] && PATS[S.icons[ex.id]] ? S.icons[ex.id] : null) || ex.fig || ex.pat;
 const allEx = () => CATALOG.concat(S.custom);
@@ -720,9 +727,14 @@ function index() {
     if (!idx.has(key)) idx.set(key, []);
     idx.get(key).push({date: d, kg: v});
   }
+  for (const [d, day] of Object.entries(S.days)) for (const e of day.entries) {
+    const v = e.vals || {}, rm = e1rm(v.kg, v.reps); if (rm == null) continue;
+    const key = e.ex + "|rm"; if (!idx.has(key)) idx.set(key, []);
+    idx.get(key).push({date: d, kg: rm, weak: v.reps > 12});
+  }
   for (const [key, r] of [...idx]) {
     r.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
-    const out = []; for (const x of r) { const l = out[out.length - 1]; if (l && l.date === x.date) { if (x.kg > l.kg) l.kg = x.kg; } else out.push({date: x.date, kg: x.kg}); }
+    const out = []; for (const x of r) { const l = out[out.length - 1]; if (l && l.date === x.date) { if (x.kg > l.kg) { l.kg = x.kg; l.weak = x.weak; } } else out.push({date: x.date, kg: x.kg, weak: x.weak}); }
     idx.set(key, out);
   }
   return idx;
@@ -865,6 +877,14 @@ function cellParts(e, ex, u) {
     tr: `<span class="tslot" data-u="${u}">${trendHtml(trendOf(e.ex, cur, v, u))}</span>`
   };
 }
+function rmSub(e, k) {
+  const v = e.vals || {}, rm = e1rm(v.kg, v.reps); if (rm == null) return "";
+  return `<span class="sub rmsub">1RM est. ${fmtKg(rm)} kg${v.reps > 12 ? " ≈" : ""} ${trendHtml(trendOf(e.ex, k, rm, "rm"))}</span>`;
+}
+function rmHtml(e) {
+  const v = e.vals || {}, rm = e1rm(v.kg, v.reps); if (rm == null) return "";
+  return `<span>1RM estimado</span><b>${fmtKg(rm)} kg</b>${v.reps > 12 ? '<span class="weak">≈ poco fiable</span>' : ""}${trendHtml(trendOf(e.ex, cur, rm, "rm"))}`;
+}
 function rowHtml(e) {
   const ex = exById(e.ex), us = unitsOf(e.ex), x = `<div class="acts"><button class="x dup" data-dup aria-label="Copiar ${esc(ex.name)} para otra serie">${ICON.dup}</button><button class="x" data-rm aria-label="Quitar ${esc(ex.name)}">${ICON.x}</button></div>`,
     sibs = (dayOf(cur) ? dayOf(cur).entries : []).filter(z => z.ex === e.ex && !z.g), cls = (SEL.has(e.k) ? " sel" : "") + (e.g ? " grp" : ""),
@@ -879,7 +899,7 @@ function rowHtml(e) {
   return `<li class="row multi${cls}" data-ex="${esc(e.ex)}" data-k="${esc(e.k)}" aria-selected="${SEL.has(e.k)}">
   <div class="fig">${figure(figOf(ex))}</div>
   <div class="nm"><b>${esc(ex.name)}${ser}</b></div>${x}
-  <div class="kgs">${us.map(u => { const c = cellParts(e, ex, u); return `<div class="kcell">${c.inp}<div class="sub">${c.hint}${c.tr}</div></div>`; }).join("")}</div></li>`;
+  <div class="kgs">${us.map(u => { const c = cellParts(e, ex, u); return `<div class="kcell">${c.inp}<div class="sub">${c.hint}${c.tr}</div></div>`; }).join("")}</div>${us.includes("kg") && us.includes("reps") ? `<div class="rmline">${rmHtml(e)}</div>` : ""}</li>`;
 }
 function renderHoy(v) {
   const d = dayOf(cur), list = d ? d.entries : [];
@@ -926,13 +946,13 @@ function renderHist(v) {
       const d = S.days[k], mk = k.slice(0, 7);
       if (mk !== m) { m = mk; html += `<h3 class="mh">${esc(fmtMonth(k))}</h3>`; }
       let up = 0, dn = 0;
-      for (const e of d.entries) for (const u of UNIT_LIST) { const t = e.vals && e.vals[u] != null ? trendOf(e.ex, k, e.vals[u], u) : null; if (t && t.t === "up") up++; if (t && t.t === "down") dn++; }
+      for (const e of d.entries) { const v = e.vals || {}, rm = e1rm(v.kg, v.reps), ts = rm != null ? [trendOf(e.ex, k, rm, "rm")] : UNIT_LIST.filter(u => v[u] != null).map(u => trendOf(e.ex, k, v[u], u)); for (const t of ts) { if (t && t.t === "up") up++; if (t && t.t === "down") dn++; } }
       html += `<article class="card day"><button class="day-h" data-open-day="${k}"><b>${esc(fmtDay(k))}</b><span class="meta">${d.entries.length} ejerc.${d.photos.length ? " · " + d.photos.length + " foto" + (d.photos.length > 1 ? "s" : "") : ""}</span>
       <span class="cnt">${up ? `<span class="trend up">${UP}${up}</span>` : ""}${dn ? `<span class="trend down">${DOWN}${dn}</span>` : ""}</span></button>
       <ul class="rows">${d.entries.map(e => {
         const ex = exById(e.ex);
         const eu = UNIT_LIST.filter(x => e.vals && e.vals[x] != null);
-        return `<li class="row ro"><div class="fig">${figure(figOf(ex), false)}</div><div class="nm"><b>${esc(ex.name)}</b></div><div class="ends">${eu.length ? eu.map(x => `<div class="uv"><div class="kgv">${fmtKg(e.vals[x])}<small>${UL(x)}</small></div>${trendHtml(trendOf(e.ex, k, e.vals[x], x))}</div>`).join("") : '<div class="kgv none">—</div>'}</div></li>`;
+        return `<li class="row ro"><div class="fig">${figure(figOf(ex), false)}</div><div class="nm"><b>${esc(ex.name)}</b>${rmSub(e, k)}</div><div class="ends">${eu.length ? eu.map(x => `<div class="uv"><div class="kgv">${fmtKg(e.vals[x])}<small>${UL(x)}</small></div>${trendHtml(trendOf(e.ex, k, e.vals[x], x))}</div>`).join("") : '<div class="kgv none">—</div>'}</div></li>`;
       }).join("")}</ul></article>`;
     }
   }
@@ -962,7 +982,7 @@ function setupRowsHtml() {
 }
 function renderSetup(v) {
   const cats = ["Todos", "Con registros", "Propios", ...CAT_ORDER.filter(c => allEx().some(e => e.cat === c))];
-  v.innerHTML = `<p class="note" style="margin:0 2px 12px">Toca una o varias unidades por ejercicio (por ejemplo <b>kg</b> y <b>reps</b>) y en Hoy tendrás un campo por cada una. Siempre queda al menos una. Cambiarlo no borra lo ya guardado. <b>s</b> son segundos y <b>cal</b> calorías.</p>
+  v.innerHTML = `<p class="note" style="margin:0 2px 12px">Toca una o varias unidades por ejercicio (por ejemplo <b>kg</b> y <b>reps</b>) y en Hoy tendrás un campo por cada una. Siempre queda al menos una. Cambiarlo no borra lo ya guardado. Con <b>kg</b> y <b>reps</b> activos, la app calcula además el 1RM estimado. <b>s</b> son segundos y <b>cal</b> calorías.</p>
   <input class="search" id="setupQ" type="search" placeholder="Buscar ejercicio" autocomplete="off" autocapitalize="off" value="${esc(setupQ)}" style="margin-bottom:10px">
   <div class="ranges" id="setupCats">${cats.map(c => `<button class="chip" data-scat="${esc(c)}" aria-pressed="${setupCat === c}">${esc(c)}</button>`).join("")}</div>
   <div id="setupList">${setupRowsHtml()}</div>`;
@@ -985,20 +1005,22 @@ function renderEjs(v) {
   if (exDetail) {
     const ex = exById(exDetail), isCustom = S.custom.some(c => c.id === exDetail);
     const us = UNIT_LIST.filter(x => unitsOf(exDetail).includes(x) || recs(exDetail, x).length);
+    if (recs(exDetail, "rm").length) us.unshift("rm");
     if (!us.includes(detailUnit)) detailUnit = us.find(x => recs(exDetail, x).length) || us[0];
     const u = detailUnit, rs = recs(exDetail, u);
-    const best = rs.length ? Math.max(...rs.map(r => r.kg)) : null, last = rs[rs.length - 1];
+    const pool = rs.filter(r => !r.weak), best = rs.length ? Math.max(...(pool.length ? pool : rs).map(r => r.kg)) : null, last = rs[rs.length - 1];
     const desc = rs.slice().reverse();
     let prSeen = false;
     v.innerHTML = `<button class="back-btn" id="exBack">${ICON.back}Ejercicios</button>
     <div class="card"><div class="hero"><div class="fig">${figure(figOf(ex))}</div><div><h2>${esc(ex.name)}</h2><div class="sub">${esc(ex.cat)}</div></div></div>
     ${isCustom && canAsk ? `<div class="redraw"><button class="btn" id="redraw"${designing.has(exDetail) || !canAsk ? " disabled" : ""}>${designing.has(exDetail) ? "Dibujando…" : ex.fig ? "Volver a dibujar el movimiento" : "Dibujar el movimiento con Claude"}</button>${canAsk ? "" : '<p class="note">Solo disponible dentro de Claude.</p>'}</div>` : ""}
-    ${rs.length ? `<div class="stats"><div class="stat"><small>Último</small><b>${fmtKg(last.kg)}<i>${UL(u)}</i></b></div><div class="stat"><small>Mejor</small><b>${fmtKg(best)}<i>${UL(u)}</i></b></div><div class="stat"><small>Sesiones</small><b>${rs.length}</b></div></div>${spark(rs)}` : ""}</div>
+    ${rs.length ? `<div class="stats"><div class="stat"><small>Último</small><b>${fmtKg(last.kg)}<i>${USUF(u)}</i></b></div><div class="stat"><small>Mejor</small><b>${fmtKg(best)}<i>${USUF(u)}</i></b></div><div class="stat"><small>Sesiones</small><b>${rs.length}</b></div></div>${spark(rs)}` : ""}</div>
     ${us.length > 1 ? `<div class="ranges" role="group" aria-label="Unidad">${us.map(x => `<button class="chip" data-dunit="${x}" aria-pressed="${x === u}">${UL(x)}</button>`).join("")}</div>` : ""}
+    ${u === "rm" ? '<p class="note" style="margin:2px 2px 10px">1RM estimado con la fórmula de Epley: kg × (1 + reps ÷ 30), tomando la mejor serie de cada día. Es más fiable hasta unas 10 repeticiones; con muchas más (≈) es solo orientativo.</p>' : ""}
     <div class="sect-h"><span>Historial${us.length > 1 ? " en " + UL(u) : ""}</span></div>
     ${rs.length ? `<div class="card">${desc.map((r, i) => {
       const t = trendOf(exDetail, r.date, r.kg, u), isPr = r.kg === best && !prSeen && (prSeen = true);
-      return `<div class="hist-row"><span class="d">${esc(fmtDay(r.date))}${isPr ? '<span class="pr">MEJOR</span>' : ""}</span><span class="kgv">${fmtKg(r.kg)}<small>${UL(u)}</small></span>${trendHtml(t) || "<span></span>"}</div>`;
+      return `<div class="hist-row"><span class="d">${esc(fmtDay(r.date))}${isPr ? '<span class="pr">MEJOR</span>' : ""}</span><span class="kgv">${r.weak ? '<span class="weak">≈</span> ' : ""}${fmtKg(r.kg)}<small>${USUF(u)}</small></span>${trendHtml(t) || "<span></span>"}</div>`;
     }).join("")}</div>` : `<div class="card empty"><p>Todavía no has apuntado ${esc(UL(u))} de este ejercicio.</p></div>`}`;
     return;
   }
@@ -1278,6 +1300,7 @@ view.addEventListener("input", e => {
   const val = parseKg(inp.value); if (val == null) delete en.vals[u]; else en.vals[u] = val;
   idx = null; save();
   const ts = row.querySelector(`.tslot[data-u="${u}"]`); if (ts) ts.innerHTML = trendHtml(trendOf(id, cur, val, u));
+  const rl = row.querySelector(".rmline"); if (rl) rl.innerHTML = rmHtml(en);
 });
 view.addEventListener("keydown", e => {
   if (e.key !== "Enter" || !e.target.matches(".kg input")) return;
