@@ -152,6 +152,7 @@ body.dragging { cursor: grabbing; }
 .rmline:empty { display: none; }
 .rmline b { color: var(--ink); font-weight: 700; }
 .weak { font-size: 12px; color: var(--muted); font-weight: 500; }
+.rmtag { color: var(--accent); font-weight: 700; }
 .rmsub { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; }
 .srow .hid { margin: 6px 0 0; }
 .end { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
@@ -1029,7 +1030,8 @@ function renderEjs(v) {
   v.innerHTML = `<div class="ranges"><button class="chip" data-showall="0" aria-pressed="${!showAllEx}">Con registros</button><button class="chip" data-showall="1" aria-pressed="${showAllEx}">Todos</button></div>
   ${list.length ? `<div class="card">${list.map(e => {
     const dus = UNIT_LIST.filter(x => recs(e.id, x).length), n = nrecs(e.id), pu = dus[0], rs = pu ? recs(e.id, pu) : [];
-    return `<button class="exrow" data-ex-open="${esc(e.id)}"><div class="fig">${figure(figOf(e), false)}</div><div class="nm"><b>${esc(e.name)}</b><span class="sub">${n ? n + (n === 1 ? " sesión" : " sesiones") + " · mejor " + fmtKg(Math.max(...rs.map(r => r.kg))) + " " + UL(pu) + (dus.length > 1 ? " · " + dus.map(UL).join(" + ") : "") : esc(e.cat)}</span></div>
+    const rr = recs(e.id, "rm"), rpool = rr.filter(r => !r.weak), rmBest = rr.length ? Math.max(...(rpool.length ? rpool : rr).map(r => r.kg)) : null;
+    return `<button class="exrow" data-ex-open="${esc(e.id)}"><div class="fig">${figure(figOf(e), false)}</div><div class="nm"><b>${esc(e.name)}</b><span class="sub">${n ? n + (n === 1 ? " sesión" : " sesiones") + " · mejor " + fmtKg(Math.max(...rs.map(r => r.kg))) + " " + UL(pu) + (dus.length > 1 && rmBest == null ? " · " + dus.map(UL).join(" + ") : "") : esc(e.cat)}</span>${rmBest != null ? `<span class="sub rmtag">1RM est. ${fmtKg(rmBest)} kg</span>` : ""}</div>
     <div class="ends">${dus.map(x => { const r = recs(e.id, x), l = r[r.length - 1]; return `<div class="uv"><div class="kgv">${fmtKg(l.kg)}<small>${UL(x)}</small></div>${trendHtml(trendOf(e.id, l.date, l.kg, x))}</div>`; }).join("")}</div></button>`;
   }).join("")}</div>` : `<div class="card empty"><div class="fig">${figure("squat")}</div><h2>Sin ejercicios todavía</h2><p>Apunta kilos en la pestaña Hoy y aquí tendrás el histórico de cada ejercicio.</p></div>`}`;
 }
